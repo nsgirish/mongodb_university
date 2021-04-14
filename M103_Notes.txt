@@ -1,5 +1,7 @@
 M103: Basic Cluster Administration
 
+certificate: https://university.mongodb.com/courses/M103/2021_March_2/completion
+
 chapter 1 the mongod 
     all daemons have 'd' suffix 
     mongod is the main daemon process of mongo database
