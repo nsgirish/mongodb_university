@@ -1,0 +1,1211 @@
+M103: Basic Cluster Administration
+
+chapter 1 the mongod 
+    all daemons have 'd' suffix 
+    mongod is the main daemon process of mongo database
+    to launch mongod in port 27000 type 
+        mongod --port 27000
+    to connect cmd line client to mongod running in port 27000 type 
+        mongo --port 27000
+    'fork' option tells mongod to run as a daemon, rather than from command line 
+    tls
+    sample mongod configuration yaml file (note: yaml indent by 2 spaces)
+        storage:
+            dbPath: "/data/db"
+        systemLog:
+            path: "/data/log/mongod.log"
+            destination: "file"
+        replication:
+            replSetName: M103
+        net:
+            bindIp : "127.0.0.1,192.168.103.100"
+        tls:
+            mode: "requireTLS"
+            certificateKeyFile: "/etc/tls/tls.pem"
+            CAFile: "/etc/tls/TLSCA.pem"
+        security:
+            keyFile: "/data/keyfile"
+        processManagement:
+            fork: true
+    lab: launching mongod 
+        problem:
+            Launch a mongod instance in the IDE terminal with a configuration file:
+            Write the configuration file. There should be an empty configuration file in your IDE File Editor, where you can specify options in YAML.
+            As a reminder, here are the requirements of your mongod instance:
+                run on port 27000
+                authentication is enabled
+            Once mongod is running, open a new Terminal window and use the following command to create an admin user. You will need to create this user in order to validate your work.
+            mongo admin --host localhost:27000 --eval '
+            db.createUser({
+                user: "m103-admin",
+                pwd: "m103-pass",
+                roles: [
+                {role: "root", db: "admin"}
+                ]
+            })
+            '
+            click 'run tests' to run suite to tests to validate lab 
+        answer:
+            # fill out this configuration file, mongod.conf!
+            # and then use it to run mongod with:
+            # mongod -f mongod.conf
+            net:
+              bindIp: localhost
+              port: 27000
+            security:
+              authorization: enabled
+    lab: change the default db path: 
+        problem
+            create new folder /var/mongodb/db
+            edit mongod.conf file to use the new folder in dbpath 
+            mongod should
+                runs on port 27000
+                stores its data files in /var/mongodb/db/
+                listens to connections from localhost
+                uses authentication
+            run following command from mongo shellto validate lab work 
+                mongo admin --host localhost:27000 --eval '
+                db.createUser({
+                    user: "m103-admin",
+                    pwd: "m103-pass",
+                    roles: [
+                    {role: "root", db: "admin"}
+                    ]
+                })
+                '
+        answer:
+            storage:
+              dbPath: "/var/mongodb/db"
+            net:
+              bindIp: localhost
+              port: 27000
+            security:
+              authorization: enabled
+    mongod basic commands 
+        db.method()
+            db.collection_name.method()
+            db.createUser()
+            db.renameCollection
+            db.collection.createIndex()
+            db.collection.drop()
+            db.commanndHelp() 
+                retrieve help to run command 
+            db.serverStatus()
+            db.runCommand()
+        rs.method()
+        sh.method()
+            sharded cluster commands 
+        for this course we'll use only helper methods 
+    lab: logging to different facility
+        Problem:
+            Use a configuration file to store log files in a new location:
+            Update your configuration file such that:
+            mongod sends logs to /var/mongodb/logs/mongod.log
+            mongod is forked and run as a daemon (this will not work without specifying logpath)
+            You will still have access to the terminal window after launching mongod with these options. For help on forking the mongod process, please refer to the docs on Managing Mongod Processes.
+            Use the following command to connect to the Mongo shell and create the following user. You will need this user in order to validate your work.
+                mongo admin --host localhost:27000 --eval '
+                db.createUser({
+                    user: "m103-admin",
+                    pwd: "m103-pass",
+                    roles: [
+                    {role: "root", db: "admin"}
+                    ]
+                })
+                '
+        answer (mongod.conf)
+            storage:
+              dbPath: /var/mongodb/db
+            net:
+              bindIp: localhost
+              port: 27000
+            security:
+              authorization: enabled
+            systemLog:
+              destination: file
+              path: "/var/mongodb/logs/mongod.log"
+              logAppend: true
+            processManagement:
+              fork: true
+    basic security 1
+        authentication validates identity of user
+        authorization validates privileges of user 
+        client authentication mechanisms supported by mongodb
+            SCRAM (salted challenge response authentication)
+                basic authentication
+                available in community and entreprise editions
+            X.509
+                uses X.509 certificate
+                available in community and entreprise editions
+            LDAP (only available in entreprise edition)
+            KERBEROS (only available in entreprise edition) 
+        this course cover only SCRAM
+        mongodb also supports inter cluster authentication
+        SCRAM provides single admin user with very strong password 
+            create basic admin user using superuser in admin db 
+        mongodb uses role based access control 
+        each user has one more more role 
+        each role has one more more privileges 
+    basic security 2
+        security 
+            authentication: enabled 
+                enables role based authentication in mongo db
+        role for root user is 'root'
+        localhost exception means mongodo allow to use it before creating new user 
+        mongo --host <host> --username <user> --password <pwd> --autheticationDatabase <db name>
+    build in roles: 1
+        a privilege is defined by resource and access allowed to resource
+        types of resource 
+            specfic db and collection
+            all db and collections
+            any db, specific collection
+            specific db, any collection
+            cluster resource
+        built in roles
+            db user
+            db admins
+            cluster admin
+            backup / restore
+            super user 
+        we focus on useradmin, dbowner, dbadmin
+    built in roles: 2
+        mongo admin -u root -p root123
+        create security officer 
+            db.createUser(
+            { user: "security_officer",
+                pwd: "h3ll0th3r3",
+                roles: [ { db: "admin", role: "userAdmin" } ]
+            }
+            )
+        all users should be created on 'admin' db 
+        create db admin
+            db.createUser(
+            { user: "dba",
+                pwd: "c1lynd3rs",
+                roles: [ { db: "admin", role: "dbAdmin" } ]
+            }
+            )
+        grant role to user
+            db.grantRolesToUser( "dba",  [ { db: "playground", role: "dbOwner"  } ] )
+        show role privileges    
+            db.runCommand( { rolesInfo: { role: "dbOwner", db: "playground" }, showPrivileges: true} )
+        use admin
+        db.createUser(
+            {
+                user: 'dba',
+                pwd: 'pass',
+                roles: [
+                    {
+                        db: 'admin',
+                        role: 'dbadmin'
+                    }
+                ]
+            }
+        )
+    lab: creating first application user: 
+        problem:
+            Problem:
+                1. Create a new user for an application that has the readWrite role:
+                2. Connect to a mongod instance that is already running in the background on port 27000. You can find the options used to launch mongod in the configuration file in your file editor.
+                    The m103-admin user has also already been created for you with password m103-pass.
+                3. Use the db.createUser() command to create a user for a CRUD application.
+                    The requirements for this new user are:
+                        Role: readWrite on applicationData database
+                        Authentication source: admin
+                        Username: m103-application-user
+                        Password: m103-application-pass
+                4. Click "Run Tests" to run a suite of tests that will check the configuration of m103-application-user. The results of these tests will let you know which steps you've yet to complete.
+            answer: 
+                mongo admin --host localhost --port 27000 --username m103-admin --password m103-pass
+                use admin
+                db.createUser( {
+                ... user: "m103-application-user",
+                ... pwd: "m103-application-pass",
+                ... roles: [ {db: "applicationData", role: "readWrite"} ]})
+
+    server tools overview: 
+        some tools we learnt
+            mongod
+            mongo 
+        run find commadn 
+            find /usr/bin -name 'mongo*'
+        we cover
+            mongostat
+            mongodump
+                export data from mongodb to files (a folder containing metadata and data in bson format)
+            mongorestore
+                restore data from external files to mongo db
+            mongoexport
+                dump db data to json format 
+            mongoimport
+                inverse of mongoexport 
+        create new dbpath and launch mongod 
+            mkdir -p ~/first_mongod
+            mongod --port 30000 --dbpath ~/first_mongod --logpath ~/first_mongod/mongodb.log --fork
+        use mongostat to get stats
+            mongostat --help
+            mongostat --port 30000
+        use mongodump to get bson dump of mongodb collection
+            mongodump --help
+            mongodump --port 30000 --db applicationData --collection products
+            ls dump/applicationData/
+            cat dump/applicationData/products.metadata.json
+        use mongorestore to restore a mongodb collection from bson dump
+            mongorestore --drop --port 30000 dump/
+        use mongoexport to export mongodb collection to json or csv or stdout 
+            mongoexport --help
+            mongoexport --port 30000 --db applicationData --collection products
+            mongoexport --port 30000 --db applicationData --collection products -o products.json
+            tail products.json 
+        use mongoimport to create a mongodb collection from json or csv file
+            mongoimport --port 30000 products.json
+    lab: importing a dataset 
+        problem: 
+            Import a dataset into MongoDB using mongoimport:
+            1. Run a mongoimport command on a MongoDB instance running in the background.
+                The requirements for this command are:
+                    connect to a mongod process running on port 27000
+                    import the data from /dataset/products.json
+                    import the data to applicationData.products
+                    use m103-application-user to authenticate to the database - this user has already been created for you on the admin database with password m103-application-pass
+            2. Click "Run Tests" to run a test that will check applicationData.products for the new data. The results of these tests will let you know which steps you've yet to complete.
+        answer: 
+            mongo admin --host localhost --port 27000 --username m103-application-user --password m103-application-pass
+            use admin
+            use applicationData (db already created)
+            user@M103# mongoimport --username=m103-application-user --password=m103-application-pass --authenticationDatabase=admin --host=localhost --port=27000 --db=applicationData --file=/dataset/products.json
+            2021-04-12T08:06:11.206+0000    no collection specified
+            2021-04-12T08:06:11.207+0000    using filename 'products' as collection
+            2021-04-12T08:06:11.234+0000    connected to: mongodb://localhost:27000/
+            2021-04-12T08:06:11.632+0000    9966 document(s) imported successfully. 0 document(s) failed to import.
+
+chapter 2: replication 
+    mongodb uses statement based replication
+    statement based replication is platform independent
+    there is also binary based replication which is platform dependent on os / processor architecture 
+        replace only bits changed 
+        might be faster than statement based replication 
+    mongodb replica set
+        replica sets are groups of mongod processes across machines 
+        nodes can be either 
+            primary 
+            secondary
+            arbitary 
+            hidden 
+        secondary node get data from primary 
+        replication is asynchronous 
+        replication based on protocol version 1 (PV1) which is based on simple RAFT protocol and RAFT Consensus algorithm 
+        an operation is said to be idempotent when it can be multiple times with same result 
+        there can be a aribiter node which serves during tiebreaker of election 
+            it can neither be primary or secondary node as it dont contain any data 
+        we should have odd number of nodes in a replica set 
+        any topology change will trigger election 
+        topology is defined in replica set config file, which is defined in one of the nodes and replicated to all 
+        a replica set can have upto 50 members but only 7 members can vote. among 7, 1 can become primary 
+        we can also have hidden nodes used to have data backup 
+    setting up a replica set 
+        config file of node 1 of replica set (note: the new keys replica set name and ssl key name used by nodes to validate each other )
+            storage:
+              dbPath: /var/mongodb/db/node1
+            net:
+              bindIp: 192.168.103.100,localhost
+              port: 27011
+            security:
+              authorization: enabled
+              keyFile: /var/mongodb/pki/m103-keyfile
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/node1/mongod.log
+              logAppend: true
+            processManagement:
+              fork: true
+            replication:
+              replSetName: m103-example
+        create key file and set permission to it 
+            sudo mkdir -p /var/mongodb/pki/
+            sudo chown vagrant:vagrant /var/mongodb/pki/
+            openssl rand -base64 741 > /var/mongodb/pki/m103-keyfile
+            chmod 400 /var/mongodb/pki/m103-keyfile
+        create db path for node 1
+            mkdir -p /var/mongodb/db/node1
+        start mongod for 1st node with node1.conf
+            mongod -f node1.conf
+        copying node1.conf to node2 and node3.conf
+            cp node1.conf node2.conf
+            cp node2.conf node3.conf
+        node2.conf after changing dbpath, port, logpath 
+            storage:
+              dbPath: /var/mongodb/db/node2
+            net:
+              bindIp: 192.168.103.100,localhost
+              port: 27012
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/node2/mongod.log
+              logAppend: true
+            processManagement:
+              fork: true
+            replication:
+              replSetName: m103-example
+        node3.conf after changing dbpath, port, logpath 
+            storage:
+              dbPath: /var/mongodb/db/node3
+            net:
+              bindIp: 192.168.103.100,localhost
+              port: 27013
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/node3/mongod.log
+              logAppend: true
+            processManagement:
+              fork: true
+            replication:
+              replSetName: m103-example
+        create data folders for node2 and node 3
+            mkdir -p /var/mongodb/db/node2
+            mkdir -p /var/mongodb/db/node3
+        start node2 and node3
+            mongod -f node2.conf
+            mongod -f node3.conf
+        connec to node 1
+            mongo --port 27011
+        init replica set
+            rs.initiate()
+        create admin user 
+            use admin
+            db.createUser({
+            user: "m103-admin",
+            pwd: "m103-pass",
+            roles: [
+                {role: "root", db: "admin"}
+            ]
+            })
+  
+        exit mongo shell and connect to entire replica set 
+            exit
+            mongo --host "m103-example/192.168.103.100:27011" -u "m103-admin" -p "m103-pass" --authenticationDatabase "admin"
+                note: hostname mentioend as : <replica set name>/host:port 
+        get replica set status 
+            rs.status()
+        adding other members of replica set 
+            rs.add("localhost:27012")
+                note: host is in format: host: port
+            rs.add("localhost:27013")
+                note: host is in format: host: port
+        get overview of replica set topology 
+            rs.isMaster()
+        stepping down current primary (this trigger a election among nodes) 
+            rs.stepDown()
+        check again overview or replica set 
+            rs.isMaster()
+
+    lab: deploy a replica set:
+        in mongod_1.conf, mongod_2.conf, mongod_3.conf set 
+            replication:
+              replSetName: m103-repl
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+        start the 3 mongod processes
+            mongod -f mongod_1.conf
+            mongod -f mongod_2.conf
+            mongod -f mongod_3.conf
+        connect to one mongod process, initiate replica set, create admin user 
+            mongo --port 27002 
+            rs.initiate()
+                after it runs wait, until prompt shows word 'primary'
+            db.createUser({
+                user: "m103-admin",
+                pwd: "m103-pass",
+                roles: [
+                    {role: "root", db: "admin"}
+                ]
+                })
+        exit mongo shell 
+        reconnect to primary mongod process and add the secondary nodes or reconnect to replica set:
+            mongo admin --host m103-repl/localhost:27003 --username m103-admin --password m103-pass --authenticationDatabase "admin"
+            rs.add("localhost:27003")
+            rs.add("localhost:27001")
+        check the status of replica set 
+            rs.status()
+            rs.isMaster()
+    
+    replication configuration document
+        simple bson document managed using json format where config of replica sets are defined and shared across all nodes of replica set
+        can use follwoing shell helpers to edit the document
+            rs.add()
+            rs.initiate()   
+            rs.remove()
+        important fields for this course are 
+            _id
+                name of the replica set 
+                eg: _id: m103-example
+            version 
+                int which get incremented everytime when replica set is changed ie new node added / removed etc
+            members
+                array of member objects which have 
+                    _id
+                        int unique identifier of member. cannot change once set 
+                    host: localhost: 27000
+                    arbiterOnly: true/false (indicate arbiter node)
+                    hidden: true / false (indicate hiddne node)
+                    priority: (0-1000)
+                        members with higher priority tend to get elected as primary and if 0 no chance of becoming primary 
+                    slaveDelay: <int seconds >
+                        delay in seconds on which copy of data maintained from other nodes 
+    replication commands 
+        rs.status()
+            report general health of nodes in replica set 
+            data will be few seconds delayed as its retrieved from heartbeat 
+            gives info on primary and secondary nodes 
+        rs.isMaster()
+            shows current node is primary or secondary 
+            gives primary node of replica set 
+            when you remove () from command you can see what internal command is run 
+        db.serverStatus()['repl']
+            output similar to rs.isMaster() but with 1 extra info - rbid: 1
+            rbid counts numbers of rollbacks operations on current cod 
+        rs.printReplicationInfo()
+            return only oplog info on current node 
+            contain timestamps on first and last oplog events of current node 
+    lecture: local db 1
+        we can see 2 databases 
+            admin 
+            local 
+        when we connect to replica set we see many collections in local db of which following is important:
+            oplog.rs
+        oplog.rs is central point of replica set
+            keep track of all data being replicated 
+            capped collection ie limited to specific size 
+            var stats = db.oplog.rs.stats()
+
+        Make a data directory and launch a mongod process for a standalone node:
+            mkdir allbymyselfdb
+            mongod --dbpath allbymyselfdb
+        display all databases 
+            mongo
+            show dbs
+        Display collections from the local database (this displays more collections from a replica set than from a standalone node):
+            use local
+            show collections
+        Query the oplog after connected to a replica set:
+            use local
+            db.oplog.rs.find()
+        Get information about the oplog (remember the oplog is a capped collection).
+        Store oplog stats as a variable called stats:\
+            var stats = db.oplog.rs.stats()
+        Verify that this collection is capped (it will grow to a pre-configured size before it starts to overwrite the oldest entries with newer ones):
+            stats.capped
+        get current size of oplog 
+            stats.size
+        get size limit of oplog 
+            stats.maxSize
+        get current oplog data (including first and last event times and configured oplog size)
+            rs.printReplicationInfo()
+    lecture: local db 2: 
+        operations logged into oplog 
+            insert 
+            create collections 
+            delete 
+            update 
+            create index 
+        once oplog becomes full, it starts to get overwritten from old operations 
+        oplog.rs size can be changed probably via command 
+        1 operation may result in many entries in oplog 
+            for update statement updating 100 rows will generate 100 entries in oplog 
+        entries are stored in oplog in idempotent way 
+        any data in localdb does not get stored in oplog and so dont get replicated in other nodes 
+        Create new namespace m103.messages:
+            use m103
+            db.createCollection('messages')
+        Query the oplog, filtering out the heartbeats ("periodic noop") and only returning the latest entry:
+            use local
+            db.oplog.rs.find( { "o.msg": { $ne: "periodic noop" } } ).sort( { $natural: -1 } ).limit(1).pretty()
+        Insert 100 different documents:
+            use m103
+            for ( i=0; i< 100; i++) { db.messages.insert( { 'msg': 'not yet', _id: i } ) }
+            db.messages.count()
+        Query the oplog to find all operations related to m103.messages:
+            use local
+            db.oplog.rs.find({"ns": "m103.messages"}).sort({$natural: -1})
+        Illustrate that one update statement may generate many entries in the oplog:
+            use m103
+            db.messages.updateMany( {}, { $set: { author: 'norberto' } } )
+            use local
+            db.oplog.rs.find( { "ns": "m103.messages" } ).sort( { $natural: -1 } )
+        Remember, even though you can write data to the local db, you should not.
+
+    lecture: reconfiguring a running replica set 
+        to add arbiter to replica set, use different command
+            rs.addArb("host:port")
+        to remove a node use 
+            rs.remove("host:port")
+        node4.conf used for new secondary node to be added to replica set:
+            storage:
+              dbPath: /var/mongodb/db/node4
+            net:
+              bindIp: 192.168.103.100,localhost
+              port: 27014
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/node4/mongod.log
+              logAppend: true
+            processManagement:
+              fork: true
+            replication:
+              replSetName: m103-example    
+        arbiter.conf used for new arbiter node to be added to replica set:
+            storage:
+              dbPath: /var/mongodb/db/arbiter
+            net:
+              bindIp: 192.168.103.100,localhost
+              port: 28000
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/arbiter/mongod.log
+              logAppend: true
+            processManagement:
+              fork: true
+            replication:
+              replSetName: m103-example  
+        Starting up mongod processes for our fourth node and arbiter:
+            mongod -f node4.conf
+            mongod -f arbiter.conf
+        From the Mongo shell of the replica set, adding the new secondary and the new arbiter:
+            rs.add("m103:27014")
+            rs.addArb("m103:28000")
+        Checking replica set makeup after adding two new nodes:
+            rs.isMaster()
+        Removing the arbiter from our replica set:
+            rs.remove("m103:28000")
+        Assigning the current configuration to a shell variable we can edit, in order to reconfigure the replica set:
+            cfg = rs.conf()
+        Editing our new variable cfg to change topology - specifically, by modifying cfg.members:
+            cfg.members[3].votes = 0
+            cfg.members[3].hidden = true
+            cfg.members[3].priority = 0
+        Updating our replica set to use the new configuration cfg:
+            rs.reconfig(cfg)
+    lab: reconfigure a replica set:
+        connect to replica set
+            mongo admin --host m103-repl/localhost:27004 --username m103-admin --password m103-pass --authenticationDatabase "admin"
+            or
+            mongo --host m103-repl/localhost:27001 --username m103-admin --password m103-pass
+        store replica set config into a variable in mongo shell 
+            m103-repl:PRIMARY> cfg = rs.conf()
+        update config of localhost:27004 from mongo shell
+            m103-repl:PRIMARY> cfg.members[3].votes = 0
+            0
+            m103-repl:PRIMARY> cfg.members[3].hidden = true
+            true
+            m103-repl:PRIMARY> cfg.members[3].priority = 0
+            0
+        apply new config to m103-repl from mongo shell
+            m103-repl:PRIMARY> rs.reconfig(cfg)
+            {
+                    "ok" : 1,
+                    "operationTime" : Timestamp(1618298215, 1),
+                    "$clusterTime" : {
+                            "clusterTime" : Timestamp(1618298215, 1),
+                            "signature" : {
+                                    "hash" : BinData(0,"nAx0wqkJfjgAi1rJ9XZyjNKeK6E="),
+                                    "keyId" : NumberLong("6950535988749795329")
+                            }
+                    }
+            }
+            m103-repl:PRIMARY> 2021-04-13T07:17:01.936+0000 I NETWORK  [ReplicaSetMonitor-TaskExecutor] changing hosts to m103-repl/localhost:27001,localhost:27002,localhost:27003 from m103-repl/localhost:27001,localhost:27002,localhost:27003,localhost:27004
+    reads and writes on a replica set 
+        if you mention the name of replica set in mongo command it would automatically redirect user and connect to primary node 
+        once we connect to secondary node, we cannot run read commands like show dbs etc., directly before running rs.slaveOk()
+        we can only read from secondary nodes, not run write commands like insert into secondary nodes 
+        if all secondary nodes are shutdown, the primary node will become seondary 
+        Connecting to the replica set:
+            mongo --host "m103-example/m103:27011" -u "m103-admin" -p "m103-pass" --authenticationDatabase "admin"
+        Checking replica set topology:
+            rs.isMaster()
+        Inserting one document into a new collection:
+            use newDB
+            db.new_collection.insert( { "student": "Matt Javaly", "grade": "A+" } )
+        Connecting directly to a secondary node (this node may not be a secondary in your replica set!):
+            mongo --host "m103:27012" -u "localhost-admin" -p "m103-pass" --authenticationDatabase "admin"
+                note: replica set name not mentioned. if so mongo will connect directly to primary node 
+        Attempting to execute a read command on a secondary node (this should fail):
+            show dbs
+        Enabling read commands on a secondary node:
+            rs.slaveOk()
+        Reading from a secondary node:
+            use newDB
+            db.new_collection.find()
+        Attempting to write data directly to a secondary node (this should fail, because we cannot write data directly to a secondary):
+            db.new_collection.insert( { "student": "Norberto Leite", "grade": "B+" } )
+        Shutting down the server (on both secondary nodes)
+            use admin
+            db.shutdownServer()
+        Connecting directly to the last healthy node in our set:
+            mongo --host "m103:27011" -u "m103-admin" -p "m103-pass" --authenticationDatabase "admin"
+        Verifying that the last node stepped down to become a secondary when a majority of nodes in the set were not available:
+            rs.isMaster()
+    failover and elections: 
+        even if secondary nodes go down, client will continue to connect to primary node until its primary 
+        a rolling upgrade means we're upgrading 1 server at a time starting with secondary nodes 
+        before shutting primary node down, do rs.stepDown() to make one of secondary node primary and then bring it down 
+        chances of secondary node winning election are determined by which node has 
+            latest copy of data 
+            higher priority 
+        nodes that are not eligible to become primary are defined as passive nodes 
+        Storing replica set configuration as a variable cfg:
+            cfg = rs.conf()
+        Setting the priority of a node to 0, so it cannot become primary (making the node "passive"):
+            cfg.members[2].priority = 0
+        Updating our replica set to use the new configuration cfg:
+            rs.reconfig(cfg)
+        Checking the new topology of our set:
+            rs.isMaster()
+        Forcing an election in this replica set (although in this case, we rigged the election so only one node could become primary):
+            rs.stepDown()
+        Checking the topology of our set after the election:
+            rs.isMaster()
+
+    write concerns: part 1
+        ack mechanisms that developers can add to write operations 
+        the more replica set members ack the write, more durable is the write 
+        write concern levels 
+            0 
+                dont wait for ack 
+            1 
+                default ie wait for ack from primary only 
+            >=2 
+                wait for ack from primary and one or more secondary nodes 
+            "majority"
+                wait for ack from majority of nodes 
+        mongodb supports write concerns for both standalone and sharded clusters 
+        allows to track durability of insert data 
+        write concern options 
+            wtimeout
+                <int> time to wait for requested write concern before marking it fail
+            J
+                true/false 
+                requires node to commit write operation to journal before returning ack 
+                if j is false, node only needs to store data in memory before reporting success 
+    write concerns: part 2 
+        insert 
+        update 
+        delete 
+        find and modify 
+        data replicated from primary to secondary nodes 
+        stronger level of durability acks increase the wait time for client 
+            more number of write concern level come with speed tradeoff
+    read concern 
+        companion to write concern 
+        use read concern with write concern to get best durability guarantee
+        way of requesting data that meets a specific level of durability 
+        during a failover read operation, read concern provides data guarantee 
+        read concern enables to return data to client which has been written to certain number of nodes in cluster 
+        read concern level 
+            local 
+                returns recent data in cluster
+                any data written in primary 
+            available (sharded clusters)
+                default for read operations in secondary nodes 
+                has special behavior in sharded cluters 
+            majority 
+                provides strongest guarantee 
+                returns data which is written in most of nodes 
+            linearizable 
+                read ur own write functionality ??
+        choose by fast, safe, latest 
+        for latest, fast reads, use local and available 
+        for fast and safe reads, use majority
+        for latest and safe, use linearizable
+    read preferences 
+        allows client to route read operations to specific nodes of replica set 
+        its a driver level setting 
+        read preference modes 
+            primary (default) 
+                route read operations to primary 
+            primary preferred
+            secondary 
+            secondary preferred
+            nearest 
+        secondary reads can return stale data 
+
+chapter 3: sharding 
+    what is sharding 
+        horizontal scaling means add more machines to cluster instead of increasing hardware capacity of machines 
+        dataset is divided into pieces and deployed into each shard 
+        mongos is the router process which route the queries to different sharded node based on the metadata of shard 
+        metadata of shard is stored in a replica of config servers 
+        sharded clusters contains data distributed across nodes 
+    lecture: when to shard 
+
+    lecture: sharded architecture
+        client connect to mongos who fwds queries to correct shards
+        metadata is stored in config servers 
+        config servers are queried by mongos to find out where data is 
+        we have a primary shard in a distributed sharded cluster 
+        shard_merge is merging of results returned by each shard to query of mongos, by mongos and returned to client 
+    lecture: setitng up a sharded cluster 
+        csrs => config server replica set 
+        mongos -f mongos.conf 
+        sh.status() is basic way of getitng sharding data from mongos 
+        we can make a replica set as a shard by changing property in its conf files 
+        to shutdown a node, connect to it and send  db.shutdownServer() from mongo client 
+        Configuration file for first config server csrs_1.conf:
+            sharding:
+              clusterRole: configsvr
+            replication:
+              replSetName: m103-csrs
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            net:
+              bindIp: localhost,192.168.103.100
+              port: 26001
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/csrs1.log
+              logAppend: true
+            processManagement:
+              fork: true
+            storage:
+              dbPath: /var/mongodb/db/csrs1
+        conf file of 2nd config server -  csrs_2.conf:   
+            sharding:
+              clusterRole: configsvr
+            replication:
+              replSetName: m103-csrs
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            net:
+              bindIp: localhost,192.168.103.100
+              port: 26002
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/csrs2.log
+              logAppend: true
+            processManagement:
+              fork: true
+            storage:
+              dbPath: /var/mongodb/db/csrs2
+        conf file of 3rd config server - csrs_3.conf:
+            sharding:
+              clusterRole: configsvr
+            replication:
+              replSetName: m103-csrs
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            net:
+              bindIp: localhost,192.168.103.100
+              port: 26003
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/csrs3.log
+              logAppend: true
+            processManagement:
+              fork: true
+            storage:
+              dbPath: /var/mongodb/db/csrs3
+        Starting the three config servers:
+            mongod -f csrs_1.conf
+            mongod -f csrs_2.conf
+            mongod -f csrs_3.conf
+        Connect to one of the config servers:
+            mongo --port 26001
+        Initiating the CSRS:
+            rs.initiate()
+        Creating super user on CSRS:
+            use admin
+            db.createUser({
+            user: "m103-admin",
+            pwd: "m103-pass",
+            roles: [
+                {role: "root", db: "admin"}
+            ]
+            })
+        Authenticating as the super user:
+            db.auth("m103-admin", "m103-pass")
+        Add the second and third node to the CSRS:
+            rs.add("192.168.103.100:26002")
+            rs.add("192.168.103.100:26003")
+        Mongos config (mongos.conf):
+            sharding:
+              configDB: m103-csrs/192.168.103.100:26001,192.168.103.100:26002,192.168.103.100:26003
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            net:
+              bindIp: localhost,192.168.103.100
+              port: 26000
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/mongos.log
+              logAppend: true
+            processManagement:
+              fork: true
+        Start the mongos server:
+            mongos -f mongos.conf
+        Connect to mongos:
+            vagrant@m103:~$ mongo --port 26000 --username m103-admin --password m103-pass --authenticationDatabase admin
+        Check sharding status:
+            MongoDB Enterprise mongos> sh.status()
+        Updated configuration for node1.conf:
+            sharding:
+              clusterRole: shardsvr
+            storage:
+              dbPath: /var/mongodb/db/node1
+              wiredTiger:
+                engineConfig:
+                cacheSizeGB: .1
+            net:
+              bindIp: 192.168.103.100,localhost
+              port: 27011
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/node1/mongod.log
+              logAppend: true
+            processManagement:
+              fork: true
+            replication:
+              replSetName: m103-repl
+        Updated configuration for node2.conf:
+            sharding:
+              clusterRole: shardsvr
+            storage:
+              dbPath: /var/mongodb/db/node2
+              wiredTiger:
+                engineConfig:
+                cacheSizeGB: .1
+            net:
+              bindIp: 192.168.103.100,localhost
+              port: 27012
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/node2/mongod.log
+              logAppend: true
+            processManagement:
+              fork: true
+            replication:
+              replSetName: m103-repl
+        Updated configuration for node3.conf:
+            sharding:
+              clusterRole: shardsvr
+            storage:
+              dbPath: /var/mongodb/db/node3
+              wiredTiger:
+                engineConfig:
+                cacheSizeGB: .1
+            net:
+              bindIp: 192.168.103.100,localhost
+              port: 27013
+            security:
+              keyFile: /var/mongodb/pki/m103-keyfile
+            systemLog:
+              destination: file
+              path: /var/mongodb/db/node3/mongod.log
+              logAppend: true
+            processManagement:
+              fork: true
+            replication:
+              replSetName: m103-repl
+        Connecting directly to secondary node (note that if an election has taken place in your replica set, the specified node may have become primary):
+            mongo --port 27012 -u "m103-admin" -p "m103-pass" --authenticationDatabase "admin"
+        Shutting down node:
+            use admin
+            db.shutdownServer()
+        Restarting node with new configuration:
+            mongod -f node2.conf
+        Stepping down current primary:
+            rs.stepDown()
+        Adding new shard to cluster from mongos:
+            sh.addShard("m103-repl/192.168.103.100:27012")
+    Lab: Deploy a Sharded Cluster
+        Update the configuration of mongos in mongos.conf, so it knows where the configuration servers are located:
+            sharding:
+              configDB: csrs/localhost:27004,localhost:27005,localhost:27006
+        start mongos 
+            mongos -f mongos.conf
+        When mongos boots up for the first time, it inherits database users from the CSRS. Authenticate to mongos using the m103-admin user:
+            mongo --port 26000 --username m103-admin --password m103-pass --authenticationDatabase admin
+        check status of shard 
+            sh.status()
+        Add shard1 as the first shard:
+            sh.addShard("shard1/localhost:27001")
+        check status of shard 
+            sh.status()
+    config db
+        dont write anything to config db 
+        config db has follwoing collections 
+            shards
+            chunks
+            mongos 
+        Switch to config DB:
+            use config
+        Query config.databases:
+            db.databases.find().pretty()
+        Query config.collections:
+            db.collections.find().pretty()
+        Query config.chunks:
+            db.chunks.find().pretty()
+        Query config.mongos:
+            db.mongos.find().pretty()
+    shard keys:
+        is a index which is used by mongodb to divide collection data based on field and store in different shard 
+        shard key fields should be indexed 
+        shard keys are immutable. it cannot be changed 
+            as of mongo 4.2, shard keys are mutable even though key values are immutable 
+        shard key values are also immutaable, those field values cannot be updated 
+        shard keys are permanent. it cannot be unsharded later
+        all collections have a default index in _id field by default 
+        Show collections in m103 database:
+            use m103
+            show collections
+        Enable sharding on the m103 database:
+            sh.enableSharding("m103")
+        Find one document from the products collection, to help us choose a shard key:
+            db.products.findOne()
+        Create an index on sku:
+            db.products.createIndex( { "sku" : 1 } )
+        Shard the products collection on sku:
+            sh.shardCollection("m103.products", {"sku" : 1 } )
+        Checking the status of the sharded cluster:
+            sh.status()
+    picking up a good shard key 
+        enable sharding at db level 
+        we shard collections 
+        we can have sharded and unsharded collections in a db 
+        what makes a good shard key 
+            high cardinality 
+                many possible unique shard key values 
+                more values then more chunks enabling shard to grow 
+            frequency 
+                defines how often a unique values occur in the key 
+            monotonic change 
+                shard key value change in a steady and predictable rate 
+                object id field in collection is monotonically increasing and not a good choice 
+        a good shard key has 
+            high cardinality
+            low frequency or little repetition of key values 
+            mon monotonically changing (non linear change in valuess)
+        read isolation 
+            which shard has data that meet our query paramter 
+        test the shard keys in staging env before sharding in prod environment 
+    hashed shard key 
+        underlying index is hashed for hashed shard key 
+        provide more even distribution of data across shards    
+        mongo hashes the field value and uses the hash to put in the respective shard node in cluster 
+        drawbacks 
+            field values are likely to be distributed across many more shards than in case of ordinary field values 
+                so searches will hit multiple shards 
+            cannot support geographically isolated read operations 
+            hashed index must be a single non array field 
+            hashed index dont support fast sorting 
+            sharding using hashed shard key 
+                use sh.enableSharding("db name") to enable sharing for specific db 
+                use db.collection.createIndex({"field name":"hashed"}) to create index for hashed shard key fields 
+                use follwoing to shard the collection
+                    sh.shardCollection("db.collection",{"shard field name": "hashed"})
+    lab: deploying a sharded Cluster
+        import products.json to m103 database 
+            mongoimport --username=m103-admin --password=m103-pass --authenticationDatabase=admin --host=localhost --port=26000 --db=m103 --file=/dataset/products.json
+                2021-04-14T10:28:41.950+0000    no collection specified
+                2021-04-14T10:28:41.950+0000    using filename 'products' as collection
+                2021-04-14T10:28:41.980+0000    connected to: mongodb://localhost:26000/
+                2021-04-14T10:28:44.220+0000    9966 document(s) imported successfully. 0 document(s) failed to import.
+        login to mongos node via mongo client 
+            mongo --port 26000 --username m103-admin --password m103-pass --authenticationDatabase admin
+        use m103 database and show products collection 
+            mongos> use m103
+                switched to db m103
+            mongos> show collections
+            products
+            mongos> db.products.findOne()
+            {
+                    "_id" : ObjectId("573f7197f29313caab89b21b"),
+                    "sku" : 20000008,
+                    "name" : "Come Into The World - CD",
+                    "type" : "Music",
+                    "regularPrice" : 14.99,
+                    "salePrice" : 14.99,
+                    "shippingWeight" : "0.25"
+            }
+
+            Enable sharding on the m103 database:
+            sh.enableSharding("m103")
+            mongos> sh.enableSharding("m103")
+            {
+                    "ok" : 1,
+                    "operationTime" : Timestamp(1618396559, 3),
+                    "$clusterTime" : {
+                            "clusterTime" : Timestamp(1618396559, 3),
+                            "signature" : {
+                                    "hash" : BinData(0,"r8OJQJsG9EmW5VNFu7R53ydRgXE="),
+                                    "keyId" : NumberLong("6950957625689243677")
+                            }
+                    }
+            }
+            Create an index on sku:
+                db.products.createIndex( { "sku" : 1 } )
+                mongos> db.products.createIndex( { "sku" : 1 } )
+                {
+                        "raw" : {
+                                "shard1/localhost:27001,localhost:27002,localhost:27003" : {
+                                        "createdCollectionAutomatically" : false,
+                                        "numIndexesBefore" : 1,
+                                        "numIndexesAfter" : 2,
+                                        "ok" : 1
+                                }
+                        },
+                        "ok" : 1,
+                        "operationTime" : Timestamp(1618396673, 3),
+                        "$clusterTime" : {
+                                "clusterTime" : Timestamp(1618396673, 3),
+                                "signature" : {
+                                        "hash" : BinData(0,"Wo1NFSp7GtSuun9N7BiOuLVToE4="),
+                                        "keyId" : NumberLong("6950957625689243677")
+                                }
+                        }
+                }
+                Shard the products collection on sku:
+                    sh.shardCollection("m103.products", {"sku" : 1 } )
+                    mongos> sh.shardCollection("m103.products", {"sku" : 1 } )
+                    {
+                            "collectionsharded" : "m103.products",
+                            "collectionUUID" : UUID("2665174b-d211-4840-b471-224eac42883d"),
+                            "ok" : 1,
+                            "operationTime" : Timestamp(1618396760, 14),
+                            "$clusterTime" : {
+                                    "clusterTime" : Timestamp(1618396760, 14),
+                                    "signature" : {
+                                            "hash" : BinData(0,"qtQEJ4JNZ+AChXMPBs5vuPFjcAQ="),
+                                            "keyId" : NumberLong("6950957625689243677")
+                                    }
+                            }
+                    }
+                Checking the status of the sharded cluster:
+                    sh.status()
+                    mongos> sh.status()
+                    --- Sharding Status --- 
+                    sharding version: {
+                            "_id" : 1,
+                            "minCompatibleVersion" : 5,
+                            "currentVersion" : 6,
+                            "clusterId" : ObjectId("6076c322326b633851ad036e")
+                    }
+                    shards:
+                            {  "_id" : "shard1",  "host" : "shard1/localhost:27001,localhost:27002,localhost:27003",  "state" : 1 }
+                            {  "_id" : "shard2",  "host" : "shard2/localhost:27007,localhost:27008,localhost:27009",  "state" : 1 }
+                    active mongoses:
+                            "4.0.5" : 1
+                    autosplit:
+                            Currently enabled: yes
+                    balancer:
+                            Currently enabled:  yes
+                            Currently running:  no
+                            Failed balancer rounds in last 5 attempts:  0
+                            Migration Results for the last 24 hours: 
+                                    No recent migrations
+                    databases:
+                            {  "_id" : "config",  "primary" : "config",  "partitioned" : true }
+                                    config.system.sessions
+                                            shard key: { "_id" : 1 }
+                                            unique: false
+                                            balancing: true
+                                            chunks:
+                                                    shard1  1
+                                            { "_id" : { "$minKey" : 1 } } -->> { "_id" : { "$maxKey" : 1 } } on : shard1 Timestamp(1, 0) 
+                            {  "_id" : "m103",  "primary" : "shard1",  "partitioned" : true,  "version" : {  "uuid" : UUID("49b823f1-9819-4e41-9850-6f5504ca2268"),  "lastMod" : 1 } }
+                                    m103.products
+                                            shard key: { "sku" : 1 }
+                                            unique: false
+                                            balancing: true
+                                            chunks:
+                                                    shard1  1
+                                            { "sku" : { "$minKey" : 1 } } -->> { "sku" : { "$maxKey" : 1 } } on : shard1 Timestamp(1, 0) 
+
+        lecture: chunks
+            chunks are logical groups of documents based on the shard field key and have min / max bound associated with it 
+            chunk can live in only one designated shard at a time 
+            config servers hold shard metadata and also mapping of chunks and shards 
+            mongos db has chunks collection 
+            chunks lower bound is inclusive
+            chunks upper bound is exclusive 
+            if we have one chunk having all keys, that chunk can live in one shard
+            default chunksize is 64mb and it will be split when it goes beyond that 
+            chunk size can be configured during runtime
+            if shard field value is same it will generate jumbo chunks 
+            jumbo chunks cannot be moved 
+            number of chunks determined by 
+                shard key cardinality / frequency 
+                chunk size 
+            Show collections in config database:
+                use config
+                show collections
+            Find one document from the chunks collection:
+                db.chunks.findOne()
+            Change the chunk size:
+                use config
+                db.settings.save({_id: "chunksize", value: 2})
+            Check the status of the sharded cluster:
+                sh.status()
+            Import the new products.part2 dataset into MongoDB:
+                mongoimport /dataset/products.part2.json --port 26000 -u "m103-admin" -p "m103-pass" --authenticationDatabase "admin" --db m103 --collection products
+
+        lecture: balancing 
+            balancer identifes which shards have too many chunks and moves chunks across shards to balance it 
+            balancer process checks chunks based on migration threshold
+            balancer runs on primary member of config server replica set from mongo ver 3.4
+            balancer is a automatic process and require minimum user configuration 
+            balancer can split chunks if needed 
+            if you stop a balancer in the middle of balncing round, it will stop after round completes 
+            Start the balancer:
+                sh.startBalancer(timeout, interval)
+            Stop the balancer:
+                sh.stopBalancer(timeout, interval)
+            Enable/disable the balancer:
+                sh.setBalancerState(boolean)
+
+        lecture: queries in a sharded cluster 
+            all queries must be directed to mongos 
+            mongos determines list of shards to receive the query 
+            mongos builds a list of shards to target a query    
+            based on query predicate, mongos target all clusters or subset of clusters for the query 
+            if query predicate contains shard key, mongos targets specific shards which improves performance 
+            if query predicate dont contain shard key, mongos targets all shards (scatter - gather) whose results delay the output of query 
+            mongos merges results returned from all shards and returns merged result to client 
+            for sort(), mongos sends sort to each target shard and does merge sort on results 
+            for limit(), mongos passes limit to each targetted shard and merges the results 
+            for skip(), mongos performs skip operation on merged set of results from each target shard 
+
+        lecture: targetted queries vs scatter gather: part 1 
+            each shard contains chunks of sharded data 
+            each chunk contain inclusive lower bound and exclusive uppper bound of data filter 
+            targetted queries to single shard or few shards is generally faster 
+            scatter gather queries 
+                queries dont have shard field key in where condition 
+                so mongos sends queries to all shards and merges the results which is very slow 
+            if you use compound index or fields as shard key you can use both fields in query where clause 
+            but you have to mention all the sharded fields in where condition to make mongos target a specifc shard 
+            if you give only one shard field in query, mongos would have to do scatter gather operation to target all shards 
+
+        lecture: targetted queries vs scatter gather part 2:
+            targetted query require the shard field key in where condition 
+                where shard field name = value 
+            ranged queries on the shard field key will have to targetted to all shards in cluster ie scatter gather operation 
+                ranged queries is like using between, >, < 
+            if no shard field key mentioned in query, mongos perform scatter gather operation targetting query to all shards
+            explain() shows the query plan on how many shards targetted to execute query  
+            Show collections in the m103 database:
+                use m103
+                show collections
+            Targeted query with explain() output:
+                db.products.find({"sku" : 1000000749 }).explain()
+            Scatter gather query with explain() output:
+                db.products.find( {
+                    "name" : "Gods And Heroes: Rome Rising - Windows [Digital Download]" }
+                    ).explain()
+      
